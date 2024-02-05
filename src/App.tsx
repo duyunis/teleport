@@ -45,7 +45,7 @@ function Layout() {
     const theme = useTheme();
     const [value, setValue] = React.useState(0);
 
-    const [filesToUpload, setFilesToUpload] = React.useState<FileProps[]>([])
+    const [_, setFilesToUpload] = React.useState<FileProps[]>([])
 
     const handleChange = (_: React.SyntheticEvent, newValue: number) => {
         setValue(newValue);
@@ -58,7 +58,6 @@ function Layout() {
     const handleFilesChange = (files: FileProps[]) => {
         // Update chosen files
         setFilesToUpload([ ...files ])
-        console.log('filesToUpload', filesToUpload)
     };
 
     return (
@@ -89,7 +88,6 @@ function Layout() {
                             <FileUpload
                                 multiFile={true}
                                 onFilesChange={handleFilesChange}
-                                // defaultFiles={filesToUpload}
                                 onContextReady={(_) => { }}
                             />
                         </TabPanel>

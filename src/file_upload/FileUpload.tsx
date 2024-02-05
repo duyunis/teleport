@@ -127,7 +127,7 @@ function FileUpload(props: FileUploadProps) {
     const [action, setAction] = useState<FileProps[] | null>()
     const [animate, setAnimate] = useState<boolean>()
     const [files, setFiles] = useState<FileProps[]>([])
-    const [originalFiles, setOriginalFiles] = useState<FileProps[]>([])
+    const originalFiles = useRef<FileProps[]>([])
 
     const buttonDeleteRef = useRef<HTMLButtonElement | null>(null)
     let imageDimension: ImageDimensionProps = { width: 128, height: 128 }
@@ -151,20 +151,20 @@ function FileUpload(props: FileUploadProps) {
     /**
      * @name addFile
      * @description
-     * @param files
+     * @param addFiles
      * @returns void
      */
-    const addFile = (files: FileProps[]): boolean => {
+    const addFile = (addFiles: FileProps[]): boolean => {
         setAnimate(false)
         setError(null)
 
-        if ((!files || files.length === 0) && onError) {
+        if ((!addFiles || addFiles.length === 0) && onError) {
             onError(`Empty file input`)
             return false
         }
 
         if (maxUploadFiles) {
-            if ((maxUploadFiles - files.length <= 0) && onError) {
+            if ((maxUploadFiles - addFiles.length <= 0) && onError) {
                 const errorMessage = `You cannot attach more than ${maxUploadFiles} files`
 
                 setError(errorMessage)
@@ -173,68 +173,50 @@ function FileUpload(props: FileUploadProps) {
             }
         }
 
-        if (window.File && window.FileReader && window.FileList && window.Blob) {
-            try {
+        // eslint-disable-next-line
+        // @ts-ignore
+        for (let i = 0; i < addFiles.length; i++) {
+            // eslint-disable-next-line
+            // @ts-ignore
+            const file = addFiles[i]
+            const extension = file.extension?.toLowerCase() || ''
+            if (maxFileSize && maxFileSize > 0) {
+                if (file.size > (1024 * 1024 * maxFileSize)) {
+                    const message = (
+                        errorSizeMessage
+                        || `The size of files cannot exceed ${maxFileSize}Mb`
+                    )
 
-                // eslint-disable-next-line
-                // @ts-ignore
-                for (let i = 0; i < files.length; i++) {
-                    // eslint-disable-next-line
-                    // @ts-ignore
-                    const file = files[i]
-                    const extension = file.extension?.toLowerCase() || ''
-                    if (maxFileSize && maxFileSize > 0) {
-                        if (file.size > (1024 * 1024 * maxFileSize)) {
-                            const message = (
-                                errorSizeMessage
-                                || `The size of files cannot exceed ${maxFileSize}Mb`
-                            )
-
-                            setError(message)
-                            if (onError) {
-                                onError(message)
-                            }
-
-                            continue
-                        }
+                    setError(message)
+                    if (onError) {
+                        onError(message)
                     }
 
-                    if (allowedExtensions && allowedExtensions.length > 0) {
-                        const isAllowed = allowedExtensions
-                            .findIndex(
-                                (ext: string) => ext.toLowerCase() === extension
-                            ) !== -1
-
-                        if (!isAllowed) {
-                            const errorMessage = `Extension .${extension} has been excluded`
-
-                            setError(errorMessage)
-                            if (onError) {
-                                onError(errorMessage)
-                            }
-
-                            continue
-                        }
-                    }
-
-                    if (!getBase64) {
-                        originalFiles.push(file)
-                        setOriginalFiles(originalFiles)
-                    }
-                    setFiles([...originalFiles])
+                    continue
                 }
-
-                return true
-
-                // eslint-disable-next-line
-                // @ts-ignore
-            } catch (e: DOMException<unknown>) {
-                setError(e.toString())
-                return false
             }
-        }
 
-        return false
+            if (allowedExtensions && allowedExtensions.length > 0) {
+                const isAllowed = allowedExtensions
+                    .findIndex(
+                        (ext: string) => ext.toLowerCase() === extension
+                    ) !== -1
+
+                if (!isAllowed) {
+                    const errorMessage = `Extension .${extension} has been excluded`
+
+                    setError(errorMessage)
+                    if (onError) {
+                        onError(errorMessage)
+                    }
+
+                    continue
+                }
+            }
+            originalFiles.current.push(file)
+            setFiles([...originalFiles.current])
+        }
+        return true
     }
 
     const openFileDialog = () => {
@@ -243,18 +225,16 @@ function FileUpload(props: FileUploadProps) {
                 multiple: true,
                 directory: false,
             })
-            console.log('openFiles', openFiles)
             if (!openFiles) {
                 return
             }
             let files: FileProps[] = []
             for (const file of openFiles) {
-                console.log('file', file)
                 if (!file) {
                     continue
                 }
                 let path = file.path
-                let isExist = originalFiles.find(file => {
+                let isExist = originalFiles.current.find(file => {
                     if (file.path == path) {
                         return file
                     }
@@ -282,10 +262,9 @@ function FileUpload(props: FileUploadProps) {
     // @ts-ignore
     const removeFile = (event: MouseEvent<HTMLButtonElement, MouseEvent>, index?: number): void | object => {
         setError(null)
-
         if (typeof index !== 'number') {
             setFiles([])
-            setOriginalFiles([])
+            originalFiles.current = []
             return
         }
 
@@ -296,10 +275,10 @@ function FileUpload(props: FileUploadProps) {
         const deletedFile = { ...files[index] }
 
         files?.splice(index, 1)
-        originalFiles?.splice(index, 1)
+        originalFiles.current?.splice(index, 1)
 
         setFiles([...files])
-        setOriginalFiles([...originalFiles])
+        originalFiles.current = [...originalFiles.current]
 
         return deletedFile
     }
@@ -312,7 +291,7 @@ function FileUpload(props: FileUploadProps) {
     const getContext = (): ContextProps => ({
         addFile: addFile,
         removeFile: removeFile,
-        files: getBase64 ? files : originalFiles
+        files: getBase64 ? files : originalFiles.current
     })
 
     useEffect(() => {
@@ -358,12 +337,12 @@ function FileUpload(props: FileUploadProps) {
                 if (!paths) {
                     return
                 }
-                let files: FileProps[] = []
+                let add_files: FileProps[] = []
                 for (const path of paths) {
                     if (!path) {
                         continue
                     }
-                    let isExist = originalFiles.find(file => {
+                    let isExist = originalFiles.current.find(file => {
                         if (file.path == path) {
                             return file
                         }
@@ -374,9 +353,9 @@ function FileUpload(props: FileUploadProps) {
                     }
                     let metadata = await getFileMetadata(path)
                     metadata.progress = 0
-                    files.push(metadata)
+                    add_files.push(metadata)
                 }
-                setAction(files)
+                setAction(add_files)
             })
         })()
         return () => {
@@ -393,7 +372,7 @@ function FileUpload(props: FileUploadProps) {
         }
 
         if (onFilesChange) {
-            onFilesChange(getBase64 ? files : originalFiles)
+            onFilesChange(getBase64 ? files : originalFiles.current)
 
             if (onContextReady) {
                 onContextReady(getContext())
@@ -401,18 +380,6 @@ function FileUpload(props: FileUploadProps) {
         }
         // eslint-disable-next-line
     }, [files, action])
-
-    const handleSendClick = () => {
-        let update_files: FileProps[] = []
-        for (const file of files) {
-            if (!file.progress) {
-                file.progress = 0;
-            }
-            file.progress += 10;
-            update_files.push(file)
-        }
-        setFiles([...update_files])
-    };
 
     const background: string = animate ?
         theme.palette.secondary.light : theme.palette.primary.light
@@ -532,7 +499,6 @@ function FileUpload(props: FileUploadProps) {
                         {files?.map((file, index) => {
                             return (
                                 <FileAttachment
-                                    startSend
                                     file={file}
                                     size={formatFileSize(file.size)}
                                     index={index}
@@ -555,8 +521,6 @@ function FileUpload(props: FileUploadProps) {
                         </Button>
                     </Typography>
                 </React.Fragment>}
-
-                <Button variant="contained" onClick={handleSendClick}>Send</Button>
         </>
     )
 }
